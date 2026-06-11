@@ -14,57 +14,61 @@ def send_telegram_message(message):
         requests.post(url, json={"chat_id": CHAT_ID, "text": message})
     except: pass
 
-# --- ARAYÜZ ---
+# --- AYARLAR ---
+turkiye_saati = timezone(timedelta(hours=3))
 st.set_page_config(page_title="NASDAQ Pro Radar", layout="wide")
 st.title("🚀 NASDAQ Profesyonel Patlama Radarı")
 
+# Filtreler
 col1, col2, col3 = st.columns(3)
 with col1: fiyat = st.selectbox("Max Fiyat:", ["Under $1", "Under $2", "Under $5"])
 with col2: hacim = st.selectbox("Min Hacim:", ["Over 1M", "Over 2M"])
 with col3: dakika = st.number_input("Tarama (Dk):", min_value=5, max_value=60, value=5)
+
 otomatik_tarama = st.toggle("🔄 Otomatik Tarama")
+
+# Son gönderilenleri tutan liste (Tekrarı engellemek için)
+if 'son_mesajlar' not in st.session_state:
+    st.session_state.son_mesajlar = []
 
 def tara():
     try:
         time.sleep(3)
         screener = Overview()
-        # RVol > 2 Filtresini aktif tutuyoruz ki 0 gelmesin, gerçek sinyaller gelsin
         screener.set_filter(filters_dict={'Exchange': 'NASDAQ', 'Price': fiyat, 'Current Volume': hacim, 'Relative Volume': 'Over 2'})
         df = screener.screener_view()
         
         if df is not None and not df.empty:
             df.columns = df.columns.str.strip()
-            
-            # Sütun ismi düzeltme ve hata denetimi
             if 'Rel Volume' not in df.columns:
                 cols = [c for c in df.columns if 'Rel' in c]
                 if cols: df.rename(columns={cols[0]: 'Rel Volume'}, inplace=True)
+                else: df['Rel Volume'] = 0
             
-            # Eğer hala Rel Volume yoksa, ekrana bilgi ver
-            if 'Rel Volume' in df.columns:
-                df['Rel Volume'] = pd.to_numeric(df['Rel Volume'], errors='coerce').fillna(0)
-                df = df.sort_values(by='Rel Volume', ascending=False).head(10)
+            df['Rel Volume'] = pd.to_numeric(df['Rel Volume'], errors='coerce').fillna(0)
+            df = df.sort_values(by='Rel Volume', ascending=False).head(5) # Telegram'a ilk 5
             
             df['Change'] = df['Change'].apply(lambda x: f"{str(x).replace('%', '')}%")
             df['Sinyal'] = df['Change'].apply(lambda x: "AL 🟢" if not str(x).startswith('-') else "SAT 🔴")
-            df['Grafik'] = df['Ticker'].apply(lambda x: f"https://www.tradingview.com/chart/?symbol=NASDAQ:{x}")
+            df['Hedef'] = df['Price'].apply(lambda x: f"${float(str(x).replace('$',''))*1.03:.2f}")
             
-            # Sütunları seç ve göster
-            cols_to_show = ['Ticker', 'Price', 'Change', 'Rel Volume', 'Sinyal', 'Grafik'] if 'Rel Volume' in df.columns else ['Ticker', 'Price', 'Change', 'Sinyal', 'Grafik']
+            # Tablo göster
+            st.dataframe(df[['Ticker', 'Price', 'Change', 'Sinyal', 'Hedef']], use_container_width=True)
             
-            st.dataframe(
-                df[cols_to_show].style.map(lambda x: 'color: green' if str(x).startswith('+') else ('color: red' if '-' in str(x) else ''), subset=['Change']),
-                column_config={"Grafik": st.column_config.LinkColumn("Analiz", display_text="Grafiği Aç")},
-                use_container_width=True
-            )
+            # Telegram: Sadece yeni bir durum varsa gönder
+            su_an = datetime.now(turkiye_saati).strftime("%H:%M")
+            mesaj_listesi = []
+            for _, row in df.iterrows():
+                mesaj = f"🏆 {row['Ticker']} | Değişim: {row['Change']} | Sinyal: {row['Sinyal']} | Hedef: {row['Hedef']}"
+                mesaj_listesi.append(mesaj)
             
-            # Telegram
-            for _, row in df.head(5).iterrows():
-                send_telegram_message(f"🏆 {row['Ticker']} | Değişim: {row['Change']} | Sinyal: {row['Sinyal']}")
+            if mesaj_listesi != st.session_state.son_mesajlar:
+                send_telegram_message(f"--- {su_an} Raporu ---\n" + "\n".join(mesaj_listesi))
+                st.session_state.son_mesajlar = mesaj_listesi
         else:
-            st.warning("Şu an RVol > 2 kriterine uyan (hacim patlaması olan) hisse bulunamadı. Filtreleri genişletmeyi dene.")
+            st.warning("Hisse bulunamadı.")
     except Exception as e:
-        st.error(f"Sistem Hatası: {e}")
+        st.error(f"Hata: {e}")
 
 if st.button("📡 Şimdi Tara") or otomatik_tarama:
     tara()
