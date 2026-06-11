@@ -4,7 +4,7 @@ import pandas as pd
 import requests
 from finvizfinance.screener.overview import Overview
 
-# Token'ı GitHub Secrets'tan alıyoruz
+# Token'ı sistemden (Secrets) otomatik çeker
 TOKEN = os.environ.get('TELEGRAM_TOKEN')
 CHAT_ID = '8421496307'
 
