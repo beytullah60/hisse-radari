@@ -8,9 +8,9 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4  # v3'ü v4 yaptım
       - name: Python Kurulumu
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5  # v4'ü v5 yaptım
         with:
           python-version: '3.10'
       - name: Kütüphaneleri Yükle
