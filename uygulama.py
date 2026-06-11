@@ -13,7 +13,7 @@ def send_telegram_message(message):
         requests.post(url, json={"chat_id": CHAT_ID, "text": message})
     except: pass
 
-# --- ARAYÜZ AYARLARI ---
+# --- AYARLAR ---
 st.set_page_config(page_title="NASDAQ 3$ Altı Radarı", layout="wide")
 st.title("🚀 NASDAQ Profesyonel 3$ Altı Hisse Radarı")
 
@@ -21,15 +21,17 @@ otomatik_tarama = st.toggle("🔄 Otomatik Tarama (5 Dakikada Bir)")
 
 def tara():
     try:
-        # Finviz üzerinden 3 dolar altı tüm NASDAQ hisselerini çek
         screener = Overview()
         screener.set_filter(filters_dict={'Exchange': 'NASDAQ', 'Price': 'Under $3'})
         df = screener.screener_view()
         
         if df is not None and not df.empty:
-            # Sütunları düzenle ve sayısal formata çevir
-            df['Change'] = df['Change'].str.replace('%', '').astype(float)
-            df['Price'] = pd.to_numeric(df['Price'], errors='coerce')
+            # GÜVENLİK: 'Change' sütununu işlemeden önce mutlaka stringe çevir
+            df['Change'] = df['Change'].astype(str).str.replace('%', '')
+            # Artık güvenle sayıya çevirebiliriz
+            df['Change'] = pd.to_numeric(df['Change'], errors='coerce').fillna(0)
+            
+            df['Price'] = pd.to_numeric(df['Price'], errors='coerce').fillna(0)
             
             # 1. EKRAN İÇİN: Tüm listeyi göster
             st.write("### NASDAQ 3$ Altı Tüm Hisseler")
@@ -52,5 +54,5 @@ def tara():
 if st.button("📡 Şimdi Tara") or otomatik_tarama:
     tara()
     if otomatik_tarama:
-        time.sleep(300) # 5 dakika
+        time.sleep(300)
         st.rerun()
