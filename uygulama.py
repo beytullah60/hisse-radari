@@ -27,9 +27,6 @@ with col3: dakika = st.number_input("Tarama (Dk):", min_value=5, max_value=60, v
 
 otomatik_tarama = st.toggle("🔄 Otomatik Tarama")
 
-if 'son_mesajlar' not in st.session_state:
-    st.session_state.son_mesajlar = []
-
 def tara():
     try:
         time.sleep(3)
@@ -39,29 +36,25 @@ def tara():
         
         if df is not None and not df.empty:
             df.columns = df.columns.str.strip()
-            
-            # Veri işleme
             df['Price'] = pd.to_numeric(df['Price'], errors='coerce')
+            
+            # Veri düzenleme
+            df = df.sort_values(by='Price', ascending=False).head(5)
             df['Change'] = df['Change'].apply(lambda x: f"{str(x).replace('%', '')}%")
             df['Sinyal'] = df['Change'].apply(lambda x: "AL 🟢" if not str(x).startswith('-') else "SAT 🔴")
             df['Hedef'] = (df['Price'] * 1.03).round(2)
             
-            # Sırala
-            df = df.sort_values(by='Price', ascending=False).head(5)
-            
             # Tablo göster
             st.dataframe(df[['Ticker', 'Price', 'Change', 'Sinyal', 'Hedef']], use_container_width=True)
             
-            # Telegram: Mesaj formatını güncelledik (Fiyat ve Hedef bir arada)
+            # TELEGRAM: Her seferinde tekrar gönder
             su_an = datetime.now(turkiye_saati).strftime("%H:%M")
-            mesaj_listesi = []
+            mesaj_baslik = f"--- {su_an} Canlı Raporu ---\n"
+            
             for _, row in df.iterrows():
                 mesaj = f"🏆 {row['Ticker']} | Fiyat: ${row['Price']} | Hedef: ${row['Hedef']} | Sinyal: {row['Sinyal']}"
-                mesaj_listesi.append(mesaj)
-            
-            if mesaj_listesi != st.session_state.son_mesajlar:
-                send_telegram_message(f"--- {su_an} Raporu ---\n" + "\n".join(mesaj_listesi))
-                st.session_state.son_mesajlar = mesaj_listesi
+                send_telegram_message(mesaj)
+                
         else:
             st.warning("Hisse bulunamadı.")
     except Exception as e:
