@@ -1,4 +1,4 @@
 streamlit
-finvizfinance
-requests
+yfinance
 pandas
+requests
