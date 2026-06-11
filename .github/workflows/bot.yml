@@ -17,5 +17,5 @@ jobs:
         run: pip install finvizfinance pandas requests yfinance
       - name: Botu Çalıştır
         env:
-          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }} # Burası çok kritik!
         run: python bot.py
