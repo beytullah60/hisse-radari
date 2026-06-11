@@ -12,55 +12,67 @@ def send_telegram_message(message):
     url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
     try:
         requests.post(url, json={"chat_id": CHAT_ID, "text": message})
-    except:
-        pass
+    except: pass
 
 # --- AYARLAR ---
 turkiye_saati = timezone(timedelta(hours=3))
 st.set_page_config(page_title="NASDAQ Pro Radar", layout="wide")
 st.title("🚀 NASDAQ Profesyonel Patlama Radarı")
 
-# Filtreler
-col1, col2, col3 = st.columns(3)
-with col1:
-    fiyat = st.selectbox("Max Fiyat:", ["Under $1", "Under $2", "Under $5"])
-with col2:
-    hacim = st.selectbox("Min Hacim:", ["Over 1M", "Over 2M"])
-with col3:
-    otomatik_tarama = st.toggle("🔄 Otomatik Tarama (Aktif Et)")
+# --- HESAPLAMA (AL/SAT & HEDEF) ---
+def tahmin_et(row):
+    try:
+        fiyat = float(str(row['Price']).replace('$', ''))
+        degisim = float(str(row['Change']).replace('%', '').replace('+', ''))
+        
+        # Basit bir mantık: Değişim pozitifse AL, negatifse SAT
+        sinyal = "AL 🟢" if degisim > 0 else "SAT 🔴"
+        # Hedef: Fiyatın %3 üstü (Basit direnç tahmini)
+        hedef = fiyat * 1.03
+        return sinyal, f"${hedef:.2f}"
+    except:
+        return "N/A", "N/A"
 
-# Tarama Fonksiyonu
+# --- ARAYÜZ ---
+col1, col2, col3 = st.columns(3)
+with col1: fiyat = st.selectbox("Max Fiyat:", ["Under $1", "Under $2", "Under $5"])
+with col2: hacim = st.selectbox("Min Hacim:", ["Over 1M", "Over 2M"])
+with col3: dakika = st.number_input("Otomatik Tarama (Dk):", min_value=1, value=2)
+
+otomatik_tarama = st.toggle("🔄 Otomatik Taramayı Başlat")
+
 def tara():
     try:
         screener = Overview()
-        screener.set_filter(filters_dict={'Exchange': 'NASDAQ', 'Price': fiyat, 'Current Volume': hacim})
+        screener.set_filter(filters_dict={'Exchange': 'NASDAQ', 'Price': fiyat, 'Current Volume': hacim, 'Relative Volume': 'Over 2'})
         df = screener.screener_view()
         
         if df is not None and not df.empty:
-            gosterilecek_sutunlar = ['Ticker', 'Company', 'Price', 'Change', 'Volume']
-            df_final = df[gosterilecek_sutunlar].copy()
-            df_final['Grafik'] = df_final['Ticker'].apply(lambda x: f"https://www.tradingview.com/chart/?symbol=NASDAQ:{x}")
+            df = df.sort_values(by='Rel Volume', ascending=False).head(5)
+            df['Change'] = df['Change'].apply(lambda x: f"{str(x).replace('%', '')}%")
             
-            # Renklendirme
+            # Sinyal ve Hedef Ekle
+            df[['Sinyal', 'Hedef']] = df.apply(lambda row: pd.Series(tahmin_et(row)), axis=1)
+            
+            df.insert(0, 'Sıra', range(1, len(df) + 1))
+            
+            # Tablo
             st.dataframe(
-                df_final.style.map(lambda x: 'color: green' if str(x).startswith('+') else ('color: red' if str(x).startswith('-') else ''), subset=['Change']),
-                column_config={"Grafik": st.column_config.LinkColumn("Analiz", display_text="Grafiği Aç")},
+                df[['Sıra', 'Ticker', 'Price', 'Change', 'Sinyal', 'Hedef']],
+                column_config={"Sinyal": st.column_config.TextColumn("İşlem Sinyali"), "Hedef": st.column_config.TextColumn("Hedef Tahmini")},
                 use_container_width=True
             )
             
-            # Telegram Bildirimi
-            su_an = datetime.now(turkiye_saati).strftime("%H:%M:%S")
-            for _, row in df_final.head(5).iterrows():
-                send_telegram_message(f"🚨 Sinyal [{su_an}]: {row['Ticker']} | Fiyat: {row['Price']} | Değişim: {row['Change']}")
+            # Telegram
+            for _, row in df.iterrows():
+                send_telegram_message(f"🏆 {row['Sıra']}. {row['Ticker']}\nSinyal: {row['Sinyal']} | Hedef: {row['Hedef']}")
         else:
-            st.warning("Şu an kriterlere uygun hisse bulunamadı.")
+            st.warning("Kriterlere uyan hisse yok.")
     except Exception as e:
         st.error(f"Hata: {e}")
 
-# Buton veya Otomatik Tarama
-if st.button("📡 Piyasayı Şimdi Tara") or otomatik_tarama:
+if st.button("📡 Şimdi Tara") or otomatik_tarama:
     tara()
     if otomatik_tarama:
-        st.info("⏳ Otomatik mod aktif. 2 dakika sonra sayfa yenilenecek...")
-        time.sleep(120)
+        time.sleep(dakika * 60)
         st.rerun()
