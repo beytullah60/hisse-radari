@@ -8,14 +8,14 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4  # v3'ü v4 yaptım
+      - uses: actions/checkout@v4
       - name: Python Kurulumu
-        uses: actions/setup-python@v5  # v4'ü v5 yaptım
+        uses: actions/setup-python@v5
         with:
           python-version: '3.10'
       - name: Kütüphaneleri Yükle
         run: pip install finvizfinance pandas requests yfinance
       - name: Botu Çalıştır
         env:
-          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }} # Burası çok kritik!
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
         run: python bot.py
