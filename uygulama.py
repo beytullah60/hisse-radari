@@ -29,13 +29,11 @@ otomatik_tarama = st.toggle("🔄 Otomatik Tarama")
 
 def tara():
     try:
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-        }
         time.sleep(3)
+        from finvizfinance.util import web_scraping
         screener = Overview()
         screener.set_filter(filters_dict={'Exchange': 'NASDAQ', 'Price': fiyat, 'Current Volume': hacim, 'Relative Volume': 'Over 2'})
-        df = screener.screener_view()
+        df = screener.screener_view(verbose=0)
         
         if df is not None and not df.empty:
             df.columns = df.columns.str.strip()
