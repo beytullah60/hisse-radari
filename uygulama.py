@@ -19,16 +19,17 @@ turkiye_saati = timezone(timedelta(hours=3))
 st.set_page_config(page_title="NASDAQ Pro Radar", layout="wide")
 st.title("🚀 NASDAQ Profesyonel Patlama Radarı")
 
-# Session State ile hafıza oluşturma
-if 'onceki_hisseler' not in st.session_state:
-    st.session_state.onceki_hisseler = set()
-
 # Filtreler
 col1, col2, col3 = st.columns(3)
 with col1: fiyat = st.selectbox("Max Fiyat:", ["Under $1", "Under $2", "Under $5"])
 with col2: hacim = st.selectbox("Min Hacim:", ["Over 1M", "Over 2M"])
 with col3: dakika = st.number_input("Tarama (Dk):", min_value=5, max_value=60, value=5)
+
 otomatik_tarama = st.toggle("🔄 Otomatik Tarama")
+
+# Son gönderilenleri tutan liste (Tekrarı engellemek için)
+if 'son_mesajlar' not in st.session_state:
+    st.session_state.son_mesajlar = []
 
 def tara():
     try:
@@ -39,30 +40,31 @@ def tara():
         
         if df is not None and not df.empty:
             df.columns = df.columns.str.strip()
-            df = df.sort_values(by='Rel Volume', ascending=False).head(5)
+            if 'Rel Volume' not in df.columns:
+                cols = [c for c in df.columns if 'Rel' in c]
+                if cols: df.rename(columns={cols[0]: 'Rel Volume'}, inplace=True)
+                else: df['Rel Volume'] = 0
             
-            # Güncel hisse listesini al
-            yeni_hisse_listesi = set(df['Ticker'].tolist())
+            df['Rel Volume'] = pd.to_numeric(df['Rel Volume'], errors='coerce').fillna(0)
+            df = df.sort_values(by='Rel Volume', ascending=False).head(5) # Telegram'a ilk 5
             
-            # Mesaj oluşturma ve YENİ etiketi
+            df['Change'] = df['Change'].apply(lambda x: f"{str(x).replace('%', '')}%")
+            df['Sinyal'] = df['Change'].apply(lambda x: "AL 🟢" if not str(x).startswith('-') else "SAT 🔴")
+            df['Hedef'] = df['Price'].apply(lambda x: f"${float(str(x).replace('$',''))*1.03:.2f}")
+            
+            # Tablo göster
+            st.dataframe(df[['Ticker', 'Price', 'Change', 'Sinyal', 'Hedef']], use_container_width=True)
+            
+            # Telegram: Sadece yeni bir durum varsa gönder
             su_an = datetime.now(turkiye_saati).strftime("%H:%M")
-            mesaj_satirlari = [f"--- {su_an} Raporu ---"]
-            
+            mesaj_listesi = []
             for _, row in df.iterrows():
-                ticker = row['Ticker']
-                yeni_mi = " (YENİ! ✨)" if ticker not in st.session_state.onceki_hisseler else ""
-                mesaj_satirlari.append(f"{ticker}{yeni_mi} | Değişim: {row['Change']} | Hedef: ${float(str(row['Price']).replace('$',''))*1.03:.2f}")
+                mesaj = f"🏆 {row['Ticker']} | Değişim: {row['Change']} | Sinyal: {row['Sinyal']} | Hedef: {row['Hedef']}"
+                mesaj_listesi.append(mesaj)
             
-            # Telegram'a gönder
-            send_telegram_message("\n".join(mesaj_satirlari))
-            
-            # Hafızayı güncelle
-            st.session_state.onceki_hisseler = yeni_hisse_listesi
-            
-            # Tabloya da yansıt
-            df['Durum'] = df['Ticker'].apply(lambda x: "YENİ" if x not in st.session_state.onceki_hisseler else "Takip")
-            st.dataframe(df[['Ticker', 'Price', 'Change', 'Durum']], use_container_width=True)
-            
+            if mesaj_listesi != st.session_state.son_mesajlar:
+                send_telegram_message(f"--- {su_an} Raporu ---\n" + "\n".join(mesaj_listesi))
+                st.session_state.son_mesajlar = mesaj_listesi
         else:
             st.warning("Hisse bulunamadı.")
     except Exception as e:
