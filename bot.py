@@ -12,8 +12,7 @@ def send_telegram_message(message):
         requests.post(url, json={"chat_id": CHAT_ID, "text": message})
     except: pass
 
-def run_bot():
-    while True:
+def run_bot():   
         try:
             screener = Overview()
             screener.set_filter(filters_dict={'Exchange': 'NASDAQ', 'Price': 'Under $3'})
