@@ -4,20 +4,21 @@ import pandas as pd
 import time
 from finvizfinance.screener.overview import Overview
 
-# Token çekme stratejisi: Önce Streamlit secrets, olmazsa sistem değişkeni
+# --- TOKEN YÖNETİMİ ---
 def get_token():
-    try:
+    # 1. Öncelik: Streamlit Cloud Secrets (Bulut için)
+    if "TELEGRAM_TOKEN" in st.secrets:
         return st.secrets["TELEGRAM_TOKEN"]
-    except:
-        return os.environ.get("TELEGRAM_TOKEN")
+    # 2. Öncelik: Sistem değişkeni (GitHub Actions veya Yerel Sunucu için)
+    return os.environ.get("TELEGRAM_TOKEN")
 
 TOKEN = get_token()
 CHAT_ID = '8421496307'
 
-# --- TELEGRAM ---
+# --- TELEGRAM FONKSİYONU ---
 def send_telegram_message(message):
     if not TOKEN: 
-        st.error("Telegram Token bulunamadı!")
+        st.error("Telegram Token bulunamadı! Lütfen ayarlardan kontrol edin.")
         return
     url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
     try:
@@ -26,7 +27,7 @@ def send_telegram_message(message):
     except Exception as e:
         st.error(f"Mesaj gönderilemedi: {e}")
 
-# --- AYARLAR ---
+# --- ARAYÜZ AYARLARI ---
 st.set_page_config(page_title="NASDAQ 3$ Altı Radarı", layout="wide")
 st.title("🚀 NASDAQ Profesyonel 3$ Altı Hisse Radarı")
 
@@ -51,7 +52,6 @@ def tara():
             for _, row in top_10.iterrows():
                 rapor += f"📈 {row['Ticker']} | Fiyat: ${row['Price']} | Değişim: %{row['Change']}\n"
             
-            # Telegram'a mesajı gönder
             send_telegram_message(rapor)
             st.success("Telegram'a güncel rapor gönderildi!")
         else:
@@ -59,9 +59,9 @@ def tara():
     except Exception as e:
         st.error(f"Hata: {e}")
 
-# Buton veya Otomatik mod tetikleyici
+# --- ÇALIŞTIRMA MANTIĞI ---
 if st.button("📡 Şimdi Tara") or otomatik_tarama:
     tara()
     if otomatik_tarama:
         time.sleep(300) # 5 dakika bekle
-        st.rerun() # Sayfayı yenile ve döngüye devam et
+        st.rerun() # Sayfayı yenile
