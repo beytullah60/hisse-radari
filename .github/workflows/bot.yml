@@ -1,7 +1,7 @@
 name: NASDAQ Bot
 on:
   schedule:
-    - cron: '*/5 * * * *' # Burayı 5 dakika olacak şekilde güncelledik
+    - cron: '*/5 * * * *'
   workflow_dispatch:
 
 jobs:
@@ -16,4 +16,6 @@ jobs:
       - name: Kütüphaneleri Yükle
         run: pip install finvizfinance pandas requests yfinance
       - name: Botu Çalıştır
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
         run: python bot.py
