@@ -27,7 +27,6 @@ with col3: dakika = st.number_input("Tarama (Dk):", min_value=5, max_value=60, v
 
 otomatik_tarama = st.toggle("🔄 Otomatik Tarama")
 
-# Son gönderilenleri tutan liste (Tekrarı engellemek için)
 if 'son_mesajlar' not in st.session_state:
     st.session_state.son_mesajlar = []
 
@@ -40,26 +39,24 @@ def tara():
         
         if df is not None and not df.empty:
             df.columns = df.columns.str.strip()
-            if 'Rel Volume' not in df.columns:
-                cols = [c for c in df.columns if 'Rel' in c]
-                if cols: df.rename(columns={cols[0]: 'Rel Volume'}, inplace=True)
-                else: df['Rel Volume'] = 0
             
-            df['Rel Volume'] = pd.to_numeric(df['Rel Volume'], errors='coerce').fillna(0)
-            df = df.sort_values(by='Rel Volume', ascending=False).head(5) # Telegram'a ilk 5
-            
+            # Veri işleme
+            df['Price'] = pd.to_numeric(df['Price'], errors='coerce')
             df['Change'] = df['Change'].apply(lambda x: f"{str(x).replace('%', '')}%")
             df['Sinyal'] = df['Change'].apply(lambda x: "AL 🟢" if not str(x).startswith('-') else "SAT 🔴")
-            df['Hedef'] = df['Price'].apply(lambda x: f"${float(str(x).replace('$',''))*1.03:.2f}")
+            df['Hedef'] = (df['Price'] * 1.03).round(2)
+            
+            # Sırala
+            df = df.sort_values(by='Price', ascending=False).head(5)
             
             # Tablo göster
             st.dataframe(df[['Ticker', 'Price', 'Change', 'Sinyal', 'Hedef']], use_container_width=True)
             
-            # Telegram: Sadece yeni bir durum varsa gönder
+            # Telegram: Mesaj formatını güncelledik (Fiyat ve Hedef bir arada)
             su_an = datetime.now(turkiye_saati).strftime("%H:%M")
             mesaj_listesi = []
             for _, row in df.iterrows():
-                mesaj = f"🏆 {row['Ticker']} | Değişim: {row['Change']} | Sinyal: {row['Sinyal']} | Hedef: {row['Hedef']}"
+                mesaj = f"🏆 {row['Ticker']} | Fiyat: ${row['Price']} | Hedef: ${row['Hedef']} | Sinyal: {row['Sinyal']}"
                 mesaj_listesi.append(mesaj)
             
             if mesaj_listesi != st.session_state.son_mesajlar:
