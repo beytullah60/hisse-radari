@@ -14,6 +14,6 @@ jobs:
         with:
           python-version: '3.10'
       - name: Kütüphaneleri Yükle
-        run: pip install finvizfinance pandas requests
+        run: pip install finvizfinance pandas requests yfinance
       - name: Botu Çalıştır
         run: python bot.py
