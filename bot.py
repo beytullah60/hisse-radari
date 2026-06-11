@@ -1,6 +1,6 @@
-import time
-import requests
+import yfinance as yf
 import pandas as pd
+import requests
 from finvizfinance.screener.overview import Overview
 
 TOKEN = '8701740133:AAEL0-5Z_zyMFGMfvgwsGVyNNj8KnGqheuk'
@@ -12,25 +12,41 @@ def send_telegram_message(message):
         requests.post(url, json={"chat_id": CHAT_ID, "text": message})
     except: pass
 
-def run_bot():   
-        try:
-            screener = Overview()
-            screener.set_filter(filters_dict={'Exchange': 'NASDAQ', 'Price': 'Under $3'})
-            df = screener.screener_view()
-            
-            if df is not None and not df.empty:
-                df['Change'] = df['Change'].astype(str).str.replace('%', '')
-                df['Change'] = pd.to_numeric(df['Change'], errors='coerce').fillna(0)
-                top_10 = df.sort_values(by='Change', ascending=False).head(10)
-                
-                rapor = "🔥 NASDAQ En Çok Yükselen 10 Hisse (Otomatik):\n\n"
-                for _, row in top_10.iterrows():
-                    rapor += f"📈 {row['Ticker']} | Fiyat: ${row['Price']} | Değişim: %{row['Change']}\n"
-                send_telegram_message(rapor)
-        except Exception as e:
-            print(f"Hata: {e}")
+def tara():
+    try:
+        # 1. ADIM: Finviz ile 3 dolar altı hisseleri bul
+        screener = Overview()
+        screener.set_filter(filters_dict={'Exchange': 'NASDAQ', 'Price': 'Under $3'})
+        df = screener.screener_view()
         
-        time.sleep(300) # 5 dakika bekle
+        if df is None or df.empty: return
+
+        # İlk 15 hisseyi al (İşlem yükü çok olmasın)
+        tickers = df['Ticker'].head(15).tolist()
+        
+        # 2. ADIM: YFinance ile fiyatları doğrula ve Pre-Market al
+        data_list = []
+        for ticker in tickers:
+            stock = yf.Ticker(ticker)
+            info = stock.info
+            # Öncelik: Pre-market -> Regular Market -> Current
+            price = info.get('preMarketPrice') or info.get('regularMarketPrice') or info.get('currentPrice')
+            prev_close = info.get('previousClose')
+            
+            if price and prev_close:
+                change = ((price - prev_close) / prev_close) * 100
+                data_list.append({'Ticker': ticker, 'Price': round(price, 3), 'Change': round(change, 2)})
+        
+        # 3. ADIM: Raporla
+        res = pd.DataFrame(data_list).sort_values(by='Change', ascending=False).head(10)
+        rapor = "🔥 NASDAQ Hibrit Radar (Finviz + YF):\n\n"
+        for _, row in res.iterrows():
+            rapor += f"📈 {row['Ticker']} | Fiyat: ${row['Price']} | Değişim: %{row['Change']}\n"
+        
+        send_telegram_message(rapor)
+        
+    except Exception as e:
+        print(f"Hata: {e}")
 
 if __name__ == "__main__":
-    run_bot()
+    tara()
